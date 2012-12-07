@@ -1,3 +1,4 @@
+
 require 'trello'
 require 'pry'
 require 'rubygems'
@@ -59,12 +60,14 @@ ThinReports::Report.generate_file( REPORT_FILENAME ) do
 
   cards.each do |card|
   	#puts card.name	
-      page.list(:work_report_list).add_row do |row|
-      	#card.pry
+      page.list(:work_report_list).add_row do |row|      	
   			row.item(:detail).value('- ' + card.name.to_s)
   			ws[row_no, 1] = card.name.to_s
   			row_no = row_no + 1
     	end
+      #archive card
+      card.closed = true
+      card.save
      end
 
   ws.save()
