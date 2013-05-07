@@ -14,8 +14,9 @@ require 'yaml'
 #assumes today date...
 START_DATE =  Chronic.parse('last sunday').strftime('%Y-%m-%d')
 END_DATE =  Chronic.parse('next sunday').strftime('%Y-%m-%d')
-WEEK_NUMBER = Date.today.cweek.to_s
-YEAR_NUMBER = Date.today.year.to_s 
+TARGET_DATE = Date.today - 3
+WEEK_NUMBER = TARGET_DATE.cweek.to_s
+YEAR_NUMBER = TARGET_DATE.year.to_s 
 SHEETNAME = "#{YEAR_NUMBER}-#{WEEK_NUMBER}"
 REPORT_FILENAME = "./reports/#{@config['settings']['report_name']}-#{SHEETNAME}.pdf"
 THIN_LAYOUT = @config['settings']['thin_layout']
@@ -28,14 +29,13 @@ Trello::Authorization.const_set :AuthPolicy, OAuthPolicy
 OAuthPolicy.consumer_credential = OAuthCredential.new @config['trello']['public_key'], @config['trello']['secret_key']
 OAuthPolicy.token = OAuthCredential.new @config['trello']['access_token_key'], nil
 
-#LANSKEY board = 50a59afc1b69fb995a002ea4'
 board = Board.find(@config['trello']['board'])
 #board.pry
 
-#lanskey DONE list = 50a59afc1b69fb995a002ea7
 list = List.find(@config['trello']['list'])
 cards = list.cards
 
+#cards.pry 
 # GoogleDrive.login_with_oauth for details.
 session = GoogleDrive.login(@config['googledocs']['google_username'], @config['googledocs']['google_password'])
 spreadsheet = session.spreadsheet_by_key(@config['googledocs']['spreadsheet'])
@@ -48,6 +48,8 @@ end
 
 
 ThinReports::Report.generate_file( REPORT_FILENAME ) do
+  puts "GENERATING #{REPORT_FILENAME}"
+
   use_layout( THIN_LAYOUT )
 
   start_new_page
@@ -59,16 +61,26 @@ ThinReports::Report.generate_file( REPORT_FILENAME ) do
   row_no = 2
 
   cards.each do |card|
-  	#puts card.name	
-      page.list(:work_report_list).add_row do |row|      	
-  			row.item(:detail).value('- ' + card.name.to_s)
-  			ws[row_no, 1] = card.name.to_s
-  			row_no = row_no + 1
-    	end
-      #archive card
-      card.closed = true
-      card.save
-     end
+  	#write to thin
+    page.list(:work_report_list).add_row :detail => "#{card.name.to_s}"
+  	#write to gdoc
+    ws[row_no, 1] = card.name.to_s
+  	row_no = row_no + 1
+
+    #is there checklists? if so add them!
+    checkitems = card.checklists
+    if !checkitems.empty? 
+      checkitems[0].check_items.each do |item|
+        page.list(:work_report_list).add_row :detail => "  - #{item['name'].to_s}"
+        ws[row_no, 1] = "    - #{item['name'].to_s}"
+        row_no = row_no + 1
+      end        
+    end
+
+  #archive card
+    #card.closed = true
+    #card.save
+  end
 
   ws.save()
   # Reloads the worksheet to get changes by other clients.
